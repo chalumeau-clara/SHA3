@@ -27,14 +27,13 @@ const int keccakf_piln[KECCAKF_ROUNDS] = {
 // Step Mapping
 // KECCAK-f[b] = KECCAK-p[b, 12+2l] => KECCAK-f[1600] = KECCAK-p[1600, 24]
 
-// A = state : array of [5][5] in single for perf
+// state : array of [5][5] in single for better perf
 void sha3_keccakf_sponge(uint64_t state[25])
 {
 
     // variables
     int x, y, r,t;
     uint64_t D, C[5];
-
 
 
     // actual iteration
@@ -81,24 +80,9 @@ void sha3_keccakf_sponge(uint64_t state[25])
     }
 }
 
-// Initialize the context for SHA3
-
-int sha3_init(sha3_ctx_t *c, int mode)
-{
-    int i;
-    printf("Mode : %i\n", mode);
-    for (i = 0; i < 25; i++)
-        c->st.state[i] = 0;
-    c->mode = mode;
-    c->rate = 200 - 2 * mode;
-    c->end_rate = 0;
-    printf("rate : %i\ncapacity : %i\n", c->rate, 2 * mode);
-
-    return 1;
-}
 
 // Absorb more data into the Keccak state
-// Converting Strings to State Arrays
+// Converting bytes to State Arrays
 int keccak_absorb(sha3_ctx_t *c, const void *message, size_t lenMessage)
 {
     size_t i;
@@ -108,7 +92,6 @@ int keccak_absorb(sha3_ctx_t *c, const void *message, size_t lenMessage)
     for (i = 0; i < lenMessage; i++) {
         // The message (input data) is XORed with the current bytes of the block
         c->st.msg_bytes[j++] ^= ((const uint8_t *) message)[i];
-
 
         // When the block is full (reaches the rate size), the algorithm proceeds to the permutation step.
         if (j >= c->rate) {
@@ -124,8 +107,8 @@ int keccak_absorb(sha3_ctx_t *c, const void *message, size_t lenMessage)
 // Pad with 10^*1 to make input length multiple of rate.
 void keccak_pad(sha3_ctx_t *c) {
     // Padding is added to the last block of data
-    c->st.msg_bytes[c->end_rate] ^= 0x06;
-    c->st.msg_bytes[c->rate - 1] ^= 0x80;
+    c->st.msg_bytes[c->end_rate] ^= 0x06; // 00000110
+    c->st.msg_bytes[c->rate - 1] ^= 0x80; // 10000000
 }
 
 
@@ -134,7 +117,7 @@ void keccak_pad(sha3_ctx_t *c) {
 int keccak_squeeze(void *hash, sha3_ctx_t *c)
 {
     int i;
-    printf("c msg bytes : %s\n", c->st.msg_bytes);
+    // printf("c msg bytes : %s\n", c->st.msg_bytes);
 
     // Apply Keccak-f permutation
     sha3_keccakf_sponge(c->st.state);
@@ -148,8 +131,8 @@ int keccak_squeeze(void *hash, sha3_ctx_t *c)
 }
 
 // compute a SHA-3 hash (hash) of given byte length from "message"
-
-void *sha3(const void *message, size_t lenMessage, void *hash, int mode, bool shake)
+// mode = hash output in bytes
+void *sha3(const void *message, size_t lenMessage, void *hash, int mode)
 {
     sha3_ctx_t sha3;
     int i;
@@ -165,48 +148,12 @@ void *sha3(const void *message, size_t lenMessage, void *hash, int mode, bool sh
     // Sponge part
     keccak_absorb(&sha3, message, lenMessage);
 
-    printf("sha3 msg bytes : %s\n", sha3.st.msg_bytes);
-    printf("sha3 state : %s\n", sha3.st.state);
-    printf("end_rate %i\n", sha3.end_rate);
+//    printf("sha3 msg bytes : %s\n", sha3.st.msg_bytes);
+//    printf("sha3 state : %s\n", sha3.st.state);
+//    printf("end_rate %i\n", sha3.end_rate);
 
-    if (!shake) {
-        keccak_pad(&sha3);
-        keccak_squeeze(hash, &sha3);
-    }
-    else {
-        shake_xof(&sha3);
-
-        for (int j = 0; j < 512; j += 32)
-            shake_out(&sha3, hash, lenMessage);
-    }
-
+    keccak_pad(&sha3);
+    keccak_squeeze(hash, &sha3);
 
     return hash;
 }
-
-// SHAKE128 and SHAKE256 extensible-output functionality
-
-void shake_xof(sha3_ctx_t *c)
-{
-    c->st.msg_bytes[c->end_rate] ^= 0x1F;
-    c->st.msg_bytes[c->rate - 1] ^= 0x80;
-    sha3_keccakf_sponge(c->st.state);
-    c->end_rate = 0;
-}
-
-void shake_out(sha3_ctx_t *c, void *out, size_t len)
-{
-    size_t i;
-    int j;
-
-    j = c->end_rate;
-    for (i = 0; i < len; i++) {
-        if (j >= c->rate) {
-            sha3_keccakf_sponge(c->st.state);
-            j = 0;
-        }
-        ((uint8_t *) out)[i] = c->st.msg_bytes[j++];
-    }
-    c->end_rate = j;
-}
-
