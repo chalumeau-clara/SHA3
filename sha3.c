@@ -143,7 +143,7 @@ void *sha3(const void *message, size_t lenMessage, void *hash, int mode)
     sha3.mode = mode;
     sha3.rate = 200 - 2 * mode; // In bytes like 1600-capacity
     sha3.end_rate = 0;
-    printf("Mode : %i\nrate : %i\ncapacity : %i\n",mode, sha3.rate, 2 * mode);
+    // printf("Mode : %i\nrate : %i\ncapacity : %i\n",mode, sha3.rate, 2 * mode);
 
     // Sponge part
     keccak_absorb(&sha3, message, lenMessage);

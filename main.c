@@ -73,7 +73,6 @@ int main(int argc, char **argv)
     size_t bytes_size;
     unsigned char* bytes;
     const char* file_path;
-    bool shake;
     uint8_t buf[64];
 
     i = 1;
