@@ -88,7 +88,7 @@ int keccak_absorb(sha3_ctx_t *c, const void *message, size_t lenMessage)
     size_t i;
     int j;
 
-    j = 0;
+    j = c->end_rate;
     for (i = 0; i < lenMessage; i++) {
         // The message (input data) is XORed with the current bytes of the block
         c->st.msg_bytes[j++] ^= ((const uint8_t *) message)[i];
@@ -130,9 +130,39 @@ int keccak_squeeze(void *hash, sha3_ctx_t *c)
     return 1;
 }
 
+// Extendable-output functions
+void shake_xof(sha3_ctx_t *c)
+{
+    // Add padding
+    c->st.msg_bytes[c->end_rate] ^= 0x1F;
+    c->st.msg_bytes[c->rate - 1] ^= 0x80;
+
+    sha3_keccakf_sponge(c->st.state);
+    c->end_rate = 0;
+}
+
+void shake_squeeze(sha3_ctx_t *c, void *hash, size_t output_lengh)
+{
+    size_t i;
+    int j;
+
+    j = c->end_rate;
+    for (i = 0; i < output_lengh; i++) {
+        // When the block is full (reaches the rate size), the algorithm proceeds to the permutation step.
+        if (j >= c->rate) {
+            // Apply Keccak-f permutation
+            sha3_keccakf_sponge(c->st.state);
+            j = 0;
+        }
+        // Output hash
+        ((uint8_t *) hash)[i] = c->st.msg_bytes[j++];
+    }
+    c->end_rate = j;
+}
+
 // compute a SHA-3 hash (hash) of given byte length from "message"
 // mode = hash output in bytes
-void *sha3(const void *message, size_t lenMessage, void *hash, int mode)
+void *sha3(const void *message, size_t lenMessage, void *hash, int mode, bool shake, int output_lengh)
 {
     sha3_ctx_t sha3;
     int i;
@@ -143,17 +173,24 @@ void *sha3(const void *message, size_t lenMessage, void *hash, int mode)
     sha3.mode = mode;
     sha3.rate = 200 - 2 * mode; // In bytes like 1600-capacity
     sha3.end_rate = 0;
-    // printf("Mode : %i\nrate : %i\ncapacity : %i\n",mode, sha3.rate, 2 * mode);
+     // printf("Mode : %i\nrate : %i\ncapacity : %i\n",mode, sha3.rate, 2 * mode);
 
-    // Sponge part
+// Sponge part
     keccak_absorb(&sha3, message, lenMessage);
 
 //    printf("sha3 msg bytes : %s\n", sha3.st.msg_bytes);
 //    printf("sha3 state : %s\n", sha3.st.state);
 //    printf("end_rate %i\n", sha3.end_rate);
 
-    keccak_pad(&sha3);
-    keccak_squeeze(hash, &sha3);
+
+     if (!shake) {
+        keccak_pad(&sha3);
+        keccak_squeeze(hash, &sha3);
+    }
+    else {
+        shake_xof(&sha3);
+        shake_squeeze(&sha3, hash, output_lengh);
+    }
 
     return hash;
 }

@@ -1,6 +1,3 @@
-// main.c
-// 19-Nov-11  Markku-Juhani O. Saarinen <mjos@iki.fi>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -73,10 +70,14 @@ int main(int argc, char **argv)
     size_t bytes_size;
     unsigned char* bytes;
     const char* file_path;
-    uint8_t buf[64];
+    uint8_t buf[6400];
+    bool shake;
+    int output_lengh;
 
     i = 1;
     digest = 256;
+    shake = false;
+    output_lengh = 32;
 
     // Get mode, by default sha3-256
     if (argc > 2 && strcmp(argv[1], "-m") == 0) {
@@ -87,6 +88,21 @@ int main(int argc, char **argv)
         }
         i = 3;
     }
+    else if (argc > 2 && strcmp(argv[1], "-s") == 0) {
+        if (argc > 4 && strcmp(argv[3], "-o") == 0) {
+            output_lengh = atoi(argv[4]) / 8;
+            i +=2;
+            printf("output lengh : %i\n", output_lengh);
+        }
+        digest = atoi(argv[2]);
+        if (!(digest == 128 || digest == 256)) {
+            printf("Error : shake mode 128 or 256\n");
+            exit(1);
+        }
+        i += 2;
+        shake = true;
+    }
+
 
     digest_in_bytes = digest / 8;
 
@@ -97,9 +113,9 @@ int main(int argc, char **argv)
         memset(buf, 0, sizeof(buf));
 
         printf("Starting sha3...\n");
-        sha3(bytes, bytes_size, buf, digest_in_bytes);
+        sha3(bytes, bytes_size, buf, digest_in_bytes, shake, output_lengh);
 
-        printf("Sha3-%i result : %s\n", digest, bytes_to_hex_string(buf, digest_in_bytes));
+        printf("%s-%i result : %s\n", shake? "shake": "sha3" ,digest, bytes_to_hex_string(buf, shake ? output_lengh:digest_in_bytes));
     }
 
     return 0;
