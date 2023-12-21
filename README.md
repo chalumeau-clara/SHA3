@@ -1,9 +1,11 @@
 # SHA3
-Supported mode sha3-224, sha3-256, sha3-384, sha3-512, shake-128 and shake-256
+Supported mode sha3-224, sha3-256, sha3-384, sha3-512
 
 ## How to use it
 
 By default sha3-256
+
+-m [mode] : for mode 
 
 ````shell
 ./sha3 -m 256 file1 file2 ...
